@@ -1,89 +1,75 @@
-# Extragram Media Sync (Full Architecture: Steps 1, 2, and 3)
+# Extragram Media Sync Plugin & Dashboard
 
-Android media listener, Telegram global music search & local cache, and real-time profile bio/status updater plugin/app for Extragram.
-
----
-
-## Complete Pipeline Architecture
-
-```
-[Any Android Music Player] (Spotify, YouTube Music, local player)
-           │
-           ▼
-[MediaNotificationListenerService] (Step 1)
-   Extracts: Title, Artist, Duration (s), PlaybackState
-           │
-           ▼ (Debounce 1.5s)
-[TrackSyncManager]
-   ┌───────┴────────────────────────┐
-   ▼                                ▼
-[TrackCacheManager] (Step 2)      [ProfileSyncManager] (Step 3)
-   - Cache HIT -> Returns doc        - 70-char limit formatting: "🎧 Artist - Title"
-   - Cache MISS -> MTProto Search    - Persistently backs up user's original bio
-     (messages.searchGlobal)         - Sets active track into Telegram bio
-     (±3s duration tolerance)        - Reverts to original bio on pause (25s delay)
-     (FLOOD_WAIT handling)           - Rate-limiting (min 15s between updates)
-```
+Extragram plugin module that automatically syncs the user's currently playing audio track from any Android media player to their Telegram **Profile Audio Track / Music Widget** (the profile music player card) using MTProto global audio search (`messages.searchGlobal`).
 
 ---
 
-## Implemented Steps
+## Key Features
 
-- [x] **Step 1: Android Media Listener**
-  - `NotificationListenerService` & `MediaSessionManager` callbacks
-  - Active controller metadata & playback state extraction
-- [x] **Step 2: Telegram Global Search & Local Caching**
-  - MTProto `messages.searchGlobal` with `inputMessagesFilterMusic`
-  - Candidate duration matching ($\pm3$ seconds tolerance)
-  - Persistent thread-safe cache (`Artist_Title` -> Telegram Document / `file_id`)
-  - Rate limiting & `FLOOD_WAIT` cooldown handling
-- [x] **Step 3: Profile Status/Bio Update & MTProto Integration**
-  - MTProto `account.updateProfile` with `about`
-  - Automatic formatting within Telegram's strict 70-character limit
-  - Original bio persistence & automatic 25s delayed restoration on pause
-  - Rate-limit protection (min 15s interval) and `FLOOD_WAIT` avoidance
-  - UI controls to toggle bio sync and manually restore original bio
+1. **Status UI Dashboard:**
+   - 🟢 **Notification Access:** Live indicator showing `🟢 Connected` or `🔴 Disabled` with a one-click settings shortcut.
+   - 🟢 **Extragram Session:** Verifies active Telegram account session via internal `AccountInstance`.
+   - 🎧 **Profile Audio Widget Card:** Displays currently synced Telegram audio document, title, artist, duration, and MTProto file ID.
+   - 🔘 **Master Sync Toggle:** One-tap Enable/Disable control for background media syncing.
+   - 🧹 **Action Buttons:** Clear Profile Audio Widget manually, or wipe the local track cache.
+
+2. **Profile Audio Widget Sync (Audio Card, Not Text Bio):**
+   - Extracts active playback from Android's `MediaSessionManager`.
+   - Queries Telegram audio files via MTProto `messages.searchGlobal` (`inputMessagesFilterMusic`).
+   - Filters candidate tracks within a $\pm3$ second duration margin.
+   - Directly attaches the matched audio file to the user's Profile Music Widget.
+   - Automatically pauses or clears the profile audio widget after a 25-second delay when media playback stops.
+
+3. **Protection & Rate Limiting:**
+   - Prevents duplicate searches for active tracks.
+   - Thread-safe persistent local cache (`Artist_Title` $\to$ Document ID).
+   - Strict `FLOOD_WAIT` cooldown handling with exponential backoff.
+
+---
+
+## Project Structure
+
+```
+├── .github/workflows/build.yml     # Cloud CI/CD workflow (builds APK on push)
+├── app/
+│   ├── build.gradle.kts            # Android module config (compileSdk 34, minSdk 26)
+│   ├── src/main/
+│   │   ├── AndroidManifest.xml     # Service with BIND_NOTIFICATION_LISTENER_SERVICE
+│   │   ├── java/com/extragram/plugin/mediasync/
+│   │   │   ├── MainActivity.kt                     # Status UI Dashboard
+│   │   │   ├── MediaNotificationListenerService.kt # Media session listener
+│   │   │   ├── cache/
+│   │   │   │   └── TrackCacheManager.kt            # Persistent track cache
+│   │   │   ├── manager/
+│   │   │   │   └── TrackSyncManager.kt             # Search, cache, and widget coordinator
+│   │   │   ├── model/
+│   │   │   │   ├── TelegramAudioDocument.kt        # MTProto audio document model
+│   │   │   │   └── TrackInfo.kt                    # Active player metadata model
+│   │   │   ├── profile/
+│   │   │   │   └── ProfileAudioWidgetManager.kt    # Profile Audio Widget manager
+│   │   │   ├── search/
+│   │   │   │   └── TelegramMusicSearchService.kt   # ±3s duration filtering & FLOOD_WAIT logic
+│   │   │   ├── telegram/
+│   │   │   │   ├── ExtragramBridgeProfileAudioClient.kt # AccountInstance profile audio bridge
+│   │   │   │   ├── ExtragramBridgeSearchClient.kt  # MTProto messages.searchGlobal bridge
+│   │   │   │   ├── ITelegramProfileAudioClient.kt  # Profile audio client interface
+│   │   │   │   ├── ITelegramSearchClient.kt        # Search client interface
+│   │   │   │   └── TelegramExceptions.kt           # FloodWaitException and error types
+│   │   │   └── util/
+│   │   │       └── MediaPermissionHelper.kt        # Permission verification helper
+│   │   └── res/                                    # UI layout, colors, themes, strings
+├── gradle/wrapper/gradle-wrapper.properties
+├── build.gradle.kts                # Root build configuration (AGP 8.3.2, Kotlin 1.9.23)
+├── settings.gradle.kts             # Repositories & app module definition
+└── gradle.properties
+```
 
 ---
 
 ## Logcat Testing
 
-Filter all pipeline events in Logcat:
+Filter all plugin logs in Logcat:
 
 ```bash
-adb logcat -s ExtragramMediaSync,TrackSyncManager,MusicSearchService,TrackCacheManager,ProfileSyncManager
-```
-
-### Complete End-to-End Logcat Trace
-
-**1. Music Starts Playing:**
-```text
-ExtragramMediaSync: ==================== TRACK UPDATE ====================
-ExtragramMediaSync: App:      com.spotify.music
-ExtragramMediaSync: Title:    Blinding Lights
-ExtragramMediaSync: Artist:   The Weeknd
-ExtragramMediaSync: Duration: 200s
-ExtragramMediaSync: Status:   PLAYING
-ExtragramMediaSync: ======================================================
-TrackCacheManager: Cache HIT for 'The Weeknd - Blinding Lights' -> Document ID: 5829104829103
-TrackSyncManager: ==================== [CACHE HIT] ====================
-TrackSyncManager: Track:       The Weeknd - Blinding Lights
-TrackSyncManager: Cached Doc:  Blinding Lights (200s)
-TrackSyncManager: =====================================================
-ProfileSyncManager: Setting profile bio to: "🎧 The Weeknd - Blinding Lights"
-ProfileSyncManager: Backed up original bio: "Software Engineer & Music Lover"
-ProfileSyncManager: ==================== BIO UPDATED ====================
-ProfileSyncManager: Bio: 🎧 The Weeknd - Blinding Lights
-ProfileSyncManager: =====================================================
-```
-
-**2. Music Pauses:**
-```text
-ExtragramMediaSync: ==================== TRACK UPDATE ====================
-ExtragramMediaSync: Status:   PAUSED/STOPPED
-ExtragramMediaSync: ======================================================
-ProfileSyncManager: Playback paused/stopped. Scheduling bio revert in 25s...
-... (25 seconds pass) ...
-ProfileSyncManager: Restoring original bio: "Software Engineer & Music Lover"
-ProfileSyncManager: Successfully restored original bio: "Software Engineer & Music Lover"
+adb logcat -s ExtragramMediaSync,TrackSyncManager,ProfileAudioWidget,MusicSearchService,TrackCacheManager
 ```

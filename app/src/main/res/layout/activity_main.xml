@@ -1,123 +1,352 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:background="#F8F9FA">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center"
-        android:padding="24dp">
+        android:padding="20dp">
 
+        <!-- Header -->
         <TextView
-            android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Extragram Media Sync"
-            android:textSize="22sp"
+            android:text="Extragram Music Sync"
+            android:textSize="24sp"
             android:textStyle="bold"
+            android:textColor="#212121" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Profile Audio Widget Sync Plugin"
+            android:textSize="14sp"
+            android:textColor="#757575"
             android:layout_marginBottom="16dp" />
 
-        <TextView
-            android:id="@+id/tvPermissionStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/permission_not_granted"
-            android:textAlignment="center"
-            android:textSize="15sp"
-            android:layout_marginBottom="12dp" />
-
-        <Button
-            android:id="@+id/btnOpenSettings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/grant_permission"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Sync Toggle Button -->
-        <Button
-            android:id="@+id/btnToggleSync"
+        <!-- Master Switch Card -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Bio Sync: ENABLED"
-            android:layout_marginBottom="16dp" />
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#E0E0E0"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="16dp">
 
-        <!-- Live Track & Search Status -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Live Track &amp; Search Status:"
-            android:textStyle="bold"
-            android:textSize="14sp"
-            android:layout_marginBottom="4dp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvSyncStatus"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Automatic Sync"
+                            android:textSize="17sp"
+                            android:textStyle="bold"
+                            android:textColor="#212121" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Sync currently playing track to profile widget"
+                            android:textSize="13sp"
+                            android:textColor="#757575" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnMasterSyncToggle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ENABLED"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- System & Session Health Dashboard Card -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Waiting for playback..."
-            android:textAlignment="center"
-            android:textSize="14sp"
-            android:textColor="#333333"
-            android:padding="12dp"
-            android:background="#15000000"
-            android:layout_marginBottom="16dp" />
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#E0E0E0"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="16dp">
 
-        <!-- Telegram Profile Bio Status -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Telegram Bio Status:"
-            android:textStyle="bold"
-            android:textSize="14sp"
-            android:layout_marginBottom="4dp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvBioStatus"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SYSTEM &amp; SESSION HEALTH"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#9E9E9E"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Notification Access Indicator -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Notification Access"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:textColor="#212121" />
+
+                        <TextView
+                            android:id="@+id/tvNotificationStatusBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🟢 Connected"
+                            android:textSize="14sp"
+                            android:textColor="#2E7D32"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnGrantNotification"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Settings"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Extragram Session Indicator -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Extragram Session"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121" />
+
+                    <TextView
+                        android:id="@+id/tvExtragramSessionBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🟢 Linked to Active Account"
+                        android:textSize="14sp"
+                        android:textColor="#2E7D32"
+                        android:textStyle="bold"
+                        android:layout_marginTop="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvExtragramSessionDetails"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Account #0 (User ID: 1234567)"
+                        android:textSize="12sp"
+                        android:textColor="#757575"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Current Profile Audio Widget Card -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Original bio active"
-            android:textAlignment="center"
-            android:textSize="14sp"
-            android:textColor="#1B5E20"
-            android:padding="12dp"
-            android:background="#15000000"
-            android:layout_marginBottom="12dp" />
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#E0E0E0"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="16dp">
 
-        <Button
-            android:id="@+id/btnRestoreBio"
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="PROFILE AUDIO WIDGET"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#9E9E9E"
+                        android:letterSpacing="0.08" />
+
+                    <TextView
+                        android:id="@+id/tvWidgetStatusBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚪ Idle"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#757575" />
+                </LinearLayout>
+
+                <!-- Track Card Container -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#F0F4F8"
+                    android:padding="12dp"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:id="@+id/tvTrackTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="No Active Track"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121" />
+
+                    <TextView
+                        android:id="@+id/tvTrackArtist"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Play music in any Android player"
+                        android:textSize="14sp"
+                        android:textColor="#546E7A"
+                        android:layout_marginTop="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvTrackDocDetails"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Duration: -- | Telegram Document: None"
+                        android:textSize="11sp"
+                        android:textColor="#78909C"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnClearWidget"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Clear Profile Audio Widget"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Local Cache & Controls Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Restore Original Bio Now"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_marginBottom="20dp" />
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="#E0E0E0"
+            app:strokeWidth="1dp"
+            android:layout_marginBottom="16dp">
 
-        <!-- Local Cache Info -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Local Audio Cache"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121" />
+
+                    <TextView
+                        android:id="@+id/tvCacheCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 tracks cached"
+                        android:textSize="13sp"
+                        android:textColor="#757575" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnClearCache"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Clear"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Logcat Hint -->
         <TextView
-            android:id="@+id/tvCacheCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cached Tracks: 0"
-            android:textSize="14sp"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btnClearCache"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Clear Local Cache"
-            style="?attr/materialButtonOutlinedStyle"
+            android:text="Logcat filters:\nadb logcat -s ExtragramMediaSync,ProfileAudioWidget,TrackSyncManager"
+            android:textAlignment="center"
+            android:textColor="#9E9E9E"
+            android:textSize="11sp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="24dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Logcat filters:\nadb logcat -s ExtragramMediaSync,TrackSyncManager,ProfileSyncManager"
-            android:textAlignment="center"
-            android:textColor="#888888"
-            android:textSize="12sp" />
 
     </LinearLayout>
 </ScrollView>

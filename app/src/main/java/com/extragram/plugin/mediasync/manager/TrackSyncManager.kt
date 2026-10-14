@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.extragram.plugin.mediasync.cache.TrackCacheManager
 import com.extragram.plugin.mediasync.model.TrackInfo
-import com.extragram.plugin.mediasync.profile.ProfileSyncManager
+import com.extragram.plugin.mediasync.profile.ProfileAudioWidgetManager
 import com.extragram.plugin.mediasync.search.TelegramMusicSearchService
 import com.extragram.plugin.mediasync.telegram.ExtragramBridgeSearchClient
 import com.extragram.plugin.mediasync.telegram.FloodWaitException
@@ -16,14 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Coordinates Step 1 playback events, Step 2 local caching & search, and Step 3 profile updates.
- *
- * Flow:
- * 1. Active playback detected -> Debounce 1.5s
- * 2. Check local cache (HIT -> Update profile bio immediately)
- * 3. Cache MISS -> Query MTProto messages.searchGlobal
- * 4. Match candidate within ±3s tolerance -> Save to cache -> Update profile bio
- * 5. Playback paused/stopped -> Delay 25s -> Restore user's original bio
+ * Main coordinator between Media Listener, Local Cache, Global Search, and Profile Audio Widget.
  */
 class TrackSyncManager private constructor(context: Context) {
 
@@ -46,35 +39,27 @@ class TrackSyncManager private constructor(context: Context) {
 
     val cacheManager: TrackCacheManager = TrackCacheManager.getInstance(appContext)
     val searchService: TelegramMusicSearchService = TelegramMusicSearchService(ExtragramBridgeSearchClient())
-    val profileManager: ProfileSyncManager = ProfileSyncManager.getInstance(appContext)
+    val widgetManager: ProfileAudioWidgetManager = ProfileAudioWidgetManager.getInstance(appContext)
 
-    // Tracks current active playing song to avoid re-searching identical tracks
     @Volatile
     private var currentPlayingTrack: TrackInfo? = null
 
-    // Job for debouncing search queries
     private var pendingSearchJob: Job? = null
 
-    // Listener callback for UI status updates
     var onSyncStatusChanged: ((status: String) -> Unit)? = null
 
-    /**
-     * Called when a track update arrives from MediaNotificationListenerService.
-     */
     fun onTrackChanged(newTrack: TrackInfo) {
         if (!newTrack.isPlaying) {
-            Log.d(TAG, "Track is paused or stopped: ${newTrack.title}")
+            Log.d(TAG, "Track paused/stopped: ${newTrack.title}")
             pendingSearchJob?.cancel()
             pendingSearchJob = null
             currentPlayingTrack = null
             notifyStatus("Paused: ${newTrack.artist} - ${newTrack.title}")
 
-            // Trigger delayed profile revert
-            profileManager.onTrackPausedOrStopped()
+            widgetManager.onTrackPausedOrStopped()
             return
         }
 
-        // Check if track is identical to currently playing track
         val previous = currentPlayingTrack
         if (previous != null &&
             previous.trackKey == newTrack.trackKey &&
@@ -85,8 +70,6 @@ class TrackSyncManager private constructor(context: Context) {
         }
 
         currentPlayingTrack = newTrack
-
-        // Cancel previous pending search (debouncing rapid track skipping)
         pendingSearchJob?.cancel()
 
         pendingSearchJob = scope.launch {
@@ -97,9 +80,6 @@ class TrackSyncManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * Executes the local cache check, Telegram search, and profile bio update pipeline.
-     */
     private suspend fun processTrackSync(track: TrackInfo) {
         val artist = track.artist
         val title = track.title
@@ -120,14 +100,12 @@ class TrackSyncManager private constructor(context: Context) {
                         "====================================================="
             )
             notifyStatus("Cache Hit: Found ${cachedDocument.title}")
-
-            // Update Telegram profile bio using cached document info
-            profileManager.onTrackStartedPlaying(track, cachedDocument)
+            widgetManager.onTrackMatched(track, cachedDocument)
             return
         }
 
-        // 2. Cache MISS -> perform Telegram search
-        Log.i(TAG, "[CACHE MISS] No local entry found for '$artist - $title'. Initiating Telegram search...")
+        // 2. Cache MISS -> search Telegram MTProto
+        Log.i(TAG, "[CACHE MISS] No local entry found for '$artist - $title'. Initiating search...")
         notifyStatus("Searching Telegram for: $artist - $title")
 
         val result = searchService.searchAndMatch(
@@ -139,7 +117,6 @@ class TrackSyncManager private constructor(context: Context) {
         result.fold(
             onSuccess = { matchedDoc ->
                 if (matchedDoc != null) {
-                    // 3. Save matched document into local cache
                     cacheManager.put(artist, title, matchedDoc)
                     Log.i(
                         TAG,
@@ -151,24 +128,20 @@ class TrackSyncManager private constructor(context: Context) {
                                 "Total Cache: ${cacheManager.size()} items\n" +
                                 "======================================================="
                     )
-                    notifyStatus("Matched & Cached: ${matchedDoc.title}")
-                    profileManager.onTrackStartedPlaying(track, matchedDoc)
+                    notifyStatus("Matched: ${matchedDoc.title}")
+                    widgetManager.onTrackMatched(track, matchedDoc)
                 } else {
                     Log.w(TAG, "[SEARCH COMPLETED] No matching Telegram audio found for: '$artist - $title'")
-                    notifyStatus("No match found for: $artist - $title")
-                    // Even if audio file isn't on Telegram, update profile bio with track info
-                    profileManager.onTrackStartedPlaying(track, null)
+                    notifyStatus("No audio match found for: $artist - $title")
                 }
             },
             onFailure = { error ->
                 if (error is FloodWaitException) {
-                    Log.w(TAG, "[RATE LIMIT] Telegram FLOOD_WAIT enforced: ${error.waitSeconds}s remaining.")
+                    Log.w(TAG, "[RATE LIMIT] Telegram FLOOD_WAIT: ${error.waitSeconds}s remaining.")
                     notifyStatus("Telegram FLOOD_WAIT: wait ${error.waitSeconds}s")
                 } else {
-                    Log.e(TAG, "[SEARCH FAILED] Error querying Telegram: ${error.message}", error)
+                    Log.e(TAG, "[SEARCH FAILED] Error: ${error.message}", error)
                     notifyStatus("Search error: ${error.message}")
-                    // Still update profile with current media player metadata
-                    profileManager.onTrackStartedPlaying(track, null)
                 }
             }
         )
