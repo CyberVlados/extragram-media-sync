@@ -95,8 +95,8 @@ class TelegramMusicSearchService(
                 // 4. Filter candidates by duration tolerance: abs(candidate.duration - target) <= tolerance
                 val matchedCandidates = if (targetDurationSeconds > 0) {
                     candidates.filter { candidate ->
-                        val diff = abs(candidate.durationSeconds - targetDurationSeconds)
-                        diff <= toleranceSeconds
+                        val diff = abs(candidate.durationSeconds.toLong() - targetDurationSeconds)
+                        diff <= toleranceSeconds.toLong()
                     }
                 } else {
                     // If active player duration was unknown/0, fallback to all returned candidates
@@ -115,11 +115,11 @@ class TelegramMusicSearchService(
 
                 // 5. Select best candidate (closest duration)
                 val bestMatch = matchedCandidates.minByOrNull {
-                    abs(it.durationSeconds - targetDurationSeconds)
+                    abs(it.durationSeconds.toLong() - targetDurationSeconds)
                 }
 
                 if (bestMatch != null) {
-                    val durationDiff = abs(bestMatch.durationSeconds - targetDurationSeconds)
+                    val durationDiff = abs(bestMatch.durationSeconds.toLong() - targetDurationSeconds)
                     Log.i(
                         TAG,
                         "==================== SEARCH MATCH ====================\n" +

@@ -71,7 +71,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Clear Local Cache"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="?attr/materialButtonOutlinedStyle"
             android:layout_marginBottom="24dp" />
 
         <TextView

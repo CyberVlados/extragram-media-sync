@@ -81,7 +81,12 @@ data class TelegramAudioDocument(
 
     companion object {
         fun fromJson(json: JSONObject): TelegramAudioDocument {
-            val fileRefStr = json.optString("fileReference", null)
+            val fileRefStr = if (json.has("fileReference") && !json.isNull("fileReference")) {
+                json.optString("fileReference").takeIf { it.isNotEmpty() }
+            } else {
+                null
+            }
+
             val fileRefBytes = if (!fileRefStr.isNullOrEmpty()) {
                 try {
                     Base64.decode(fileRefStr, Base64.NO_WRAP)

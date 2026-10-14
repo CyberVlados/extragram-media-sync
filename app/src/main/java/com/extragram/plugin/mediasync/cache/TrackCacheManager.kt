@@ -54,8 +54,10 @@ class TrackCacheManager private constructor(context: Context) {
 
     private fun loadAllFromDisk() {
         try {
-            val allEntries = prefs.all
-            for ((key, value) in allEntries) {
+            val allEntries: Map<String, *> = prefs.all ?: emptyMap<String, Any>()
+            for (entry in allEntries.entries) {
+                val key = entry.key
+                val value = entry.value
                 if (key.startsWith(KEY_PREFIX) && value is String) {
                     try {
                         val json = JSONObject(value)

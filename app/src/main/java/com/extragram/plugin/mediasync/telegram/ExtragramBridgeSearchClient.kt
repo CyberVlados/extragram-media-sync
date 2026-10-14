@@ -4,11 +4,13 @@ import android.util.Log
 import com.extragram.plugin.mediasync.model.TelegramAudioDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCancellableCoroutine
 
 /**
  * Implementation of ITelegramSearchClient that interfaces with Extragram / Telegram MTProto engine.
@@ -50,7 +52,6 @@ class ExtragramBridgeSearchClient : ITelegramSearchClient {
     /**
      * Executes MTProto messages.searchGlobal with TL_inputMessagesFilterMusic via reflection.
      */
-    @Suppress("UNCHECKED_CAST")
     private suspend fun searchViaExtragramMtProto(query: String, limit: Int): List<TelegramAudioDocument> =
         suspendCancellableCoroutine { continuation ->
             try {
@@ -83,36 +84,41 @@ class ExtragramBridgeSearchClient : ITelegramSearchClient {
 
                 // 4. Send request via sendRequest(TLObject, RequestDelegate)
                 val requestDelegateClass = Class.forName("org.telegram.tgnet.RequestDelegate")
-                val proxyDelegate = java.lang.reflect.Proxy.newProxyInstance(
+                val proxyDelegate = Proxy.newProxyInstance(
                     requestDelegateClass.classLoader,
-                    arrayOf(requestDelegateClass)
-                ) { _, method, args ->
-                    if (method.name == "run") {
-                        val response = args?.getOrNull(0)
-                        val error = args?.getOrNull(1)
+                    arrayOf(requestDelegateClass),
+                    InvocationHandler { _, method, args ->
+                        if (method?.name == "run") {
+                            val response = args?.getOrNull(0)
+                            val error = args?.getOrNull(1)
 
-                        if (error != null) {
-                            val errorText = error.javaClass.getField("text").get(error)?.toString() ?: ""
-                            Log.w(TAG, "MTProto Error received: $errorText")
-                            if (errorText.startsWith("FLOOD_WAIT_")) {
-                                val waitSec = errorText.removePrefix("FLOOD_WAIT_").trim().toIntOrNull() ?: 10
-                                continuation.resumeWithException(FloodWaitException(waitSec))
+                            if (error != null) {
+                                val errorText = try {
+                                    error.javaClass.getField("text").get(error)?.toString() ?: ""
+                                } catch (e: Throwable) {
+                                    ""
+                                }
+                                Log.w(TAG, "MTProto Error received: $errorText")
+                                if (errorText.startsWith("FLOOD_WAIT_")) {
+                                    val waitSec = errorText.removePrefix("FLOOD_WAIT_").trim().toIntOrNull() ?: 10
+                                    continuation.resumeWithException(FloodWaitException(waitSec))
+                                } else {
+                                    continuation.resumeWithException(TelegramNetworkException("MTProto error: $errorText"))
+                                }
+                            } else if (response != null) {
+                                try {
+                                    val documents = parseMessagesResponse(response)
+                                    continuation.resume(documents)
+                                } catch (e: Throwable) {
+                                    continuation.resumeWithException(TelegramSearchException("Failed to parse response", e))
+                                }
                             } else {
-                                continuation.resumeWithException(TelegramNetworkException("MTProto error: $errorText"))
+                                continuation.resume(emptyList())
                             }
-                        } else if (response != null) {
-                            try {
-                                val documents = parseMessagesResponse(response)
-                                continuation.resume(documents)
-                            } catch (e: Throwable) {
-                                continuation.resumeWithException(TelegramSearchException("Failed to parse response", e))
-                            }
-                        } else {
-                            continuation.resume(emptyList())
                         }
+                        null
                     }
-                    null
-                }
+                )
 
                 val sendRequestMethod = connMgrClass.getMethod(
                     "sendRequest",
@@ -141,16 +147,29 @@ class ExtragramBridgeSearchClient : ITelegramSearchClient {
                 val media = try { msg.javaClass.getField("media").get(msg) } catch (e: Throwable) { null } ?: continue
                 val document = try { media.javaClass.getField("document").get(media) } catch (e: Throwable) { null } ?: continue
 
-                val docId = document.javaClass.getField("id").getLong(document)
-                val accessHash = document.javaClass.getField("access_hash").getLong(document)
-                val size = document.javaClass.getField("size").getLong(document)
-                val mimeType = document.javaClass.getField("mime_type").get(document)?.toString() ?: "audio/mpeg"
+                val docId = try {
+                    (document.javaClass.getField("id").get(document) as? Number)?.toLong() ?: 0L
+                } catch (e: Throwable) { 0L }
+
+                val accessHash = try {
+                    (document.javaClass.getField("access_hash").get(document) as? Number)?.toLong() ?: 0L
+                } catch (e: Throwable) { 0L }
+
+                val size = try {
+                    (document.javaClass.getField("size").get(document) as? Number)?.toLong() ?: 0L
+                } catch (e: Throwable) { 0L }
+
+                val mimeType = try {
+                    document.javaClass.getField("mime_type").get(document)?.toString() ?: "audio/mpeg"
+                } catch (e: Throwable) { "audio/mpeg" }
 
                 val fileRef = try {
                     document.javaClass.getField("file_reference").get(document) as? ByteArray
                 } catch (ignored: Throwable) { null }
 
-                val attributes = document.javaClass.getField("attributes").get(document) as? List<*> ?: emptyList<Any>()
+                val attributes = try {
+                    document.javaClass.getField("attributes").get(document) as? List<*> ?: emptyList<Any>()
+                } catch (e: Throwable) { emptyList<Any>() }
 
                 var title = ""
                 var performer = ""
@@ -158,9 +177,18 @@ class ExtragramBridgeSearchClient : ITelegramSearchClient {
 
                 for (attr in attributes) {
                     if (attr != null && attr.javaClass.name.contains("TL_documentAttributeAudio")) {
-                        duration = attr.javaClass.getField("duration").getInt(attr)
-                        title = attr.javaClass.getField("title").get(attr)?.toString() ?: ""
-                        performer = attr.javaClass.getField("performer").get(attr)?.toString() ?: ""
+                        duration = try {
+                            (attr.javaClass.getField("duration").get(attr) as? Number)?.toInt() ?: 0
+                        } catch (e: Throwable) { 0 }
+
+                        title = try {
+                            attr.javaClass.getField("title").get(attr)?.toString() ?: ""
+                        } catch (e: Throwable) { "" }
+
+                        performer = try {
+                            attr.javaClass.getField("performer").get(attr)?.toString() ?: ""
+                        } catch (e: Throwable) { "" }
+
                         break
                     }
                 }
@@ -192,10 +220,8 @@ class ExtragramBridgeSearchClient : ITelegramSearchClient {
      */
     private suspend fun searchViaStandaloneFallback(query: String, limit: Int): List<TelegramAudioDocument> {
         Log.i(TAG, "Extragram client not found in runtime. Operating in Standalone/Demo mode for query='$query'")
-        // Simulate network latency
         delay(400)
 
-        // Generate candidate documents for testing duration matching
         val parts = query.split("-", limit = 2)
         val artist = parts.getOrNull(0)?.trim() ?: "Artist"
         val title = parts.getOrNull(1)?.trim() ?: query.trim()
