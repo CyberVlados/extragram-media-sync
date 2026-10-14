@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Extragram Media Sync</string>
+    <string name="grant_permission">Grant Notification Access</string>
+    <string name="open_settings">Open Notification Settings</string>
+    <string name="permission_granted">Notification Access: GRANTED\n\nActive media playback will be captured and printed to Logcat.</string>
+    <string name="permission_not_granted">Notification Access: NOT GRANTED\n\nPlease grant Notification Access so Extragram can read current media playback metadata.</string>
+</resources>
