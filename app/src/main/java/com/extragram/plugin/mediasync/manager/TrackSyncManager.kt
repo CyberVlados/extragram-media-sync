@@ -3,8 +3,8 @@ package com.extragram.plugin.mediasync.manager
 import android.content.Context
 import android.util.Log
 import com.extragram.plugin.mediasync.cache.TrackCacheManager
-import com.extragram.plugin.mediasync.model.TelegramAudioDocument
 import com.extragram.plugin.mediasync.model.TrackInfo
+import com.extragram.plugin.mediasync.profile.ProfileSyncManager
 import com.extragram.plugin.mediasync.search.TelegramMusicSearchService
 import com.extragram.plugin.mediasync.telegram.ExtragramBridgeSearchClient
 import com.extragram.plugin.mediasync.telegram.FloodWaitException
@@ -16,13 +16,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Coordinates Step 1 playback events, Step 2 local caching, and Telegram music search.
+ * Coordinates Step 1 playback events, Step 2 local caching & search, and Step 3 profile updates.
  *
- * Responsibilities:
- * - Debounces rapid playback changes (e.g. quick song skipping).
- * - Checks local cache before dispatching any Telegram MTProto network queries.
- * - Handles rate-limiting and FLOOD_WAIT cooldowns.
- * - Saves matched tracks into persistent storage.
+ * Flow:
+ * 1. Active playback detected -> Debounce 1.5s
+ * 2. Check local cache (HIT -> Update profile bio immediately)
+ * 3. Cache MISS -> Query MTProto messages.searchGlobal
+ * 4. Match candidate within ±3s tolerance -> Save to cache -> Update profile bio
+ * 5. Playback paused/stopped -> Delay 25s -> Restore user's original bio
  */
 class TrackSyncManager private constructor(context: Context) {
 
@@ -45,6 +46,7 @@ class TrackSyncManager private constructor(context: Context) {
 
     val cacheManager: TrackCacheManager = TrackCacheManager.getInstance(appContext)
     val searchService: TelegramMusicSearchService = TelegramMusicSearchService(ExtragramBridgeSearchClient())
+    val profileManager: ProfileSyncManager = ProfileSyncManager.getInstance(appContext)
 
     // Tracks current active playing song to avoid re-searching identical tracks
     @Volatile
@@ -60,12 +62,15 @@ class TrackSyncManager private constructor(context: Context) {
      * Called when a track update arrives from MediaNotificationListenerService.
      */
     fun onTrackChanged(newTrack: TrackInfo) {
-        // Only trigger search when the track is ACTIVELY PLAYING
         if (!newTrack.isPlaying) {
-            Log.d(TAG, "Track is paused or stopped. Skipping search for: ${newTrack.title}")
+            Log.d(TAG, "Track is paused or stopped: ${newTrack.title}")
             pendingSearchJob?.cancel()
             pendingSearchJob = null
+            currentPlayingTrack = null
             notifyStatus("Paused: ${newTrack.artist} - ${newTrack.title}")
+
+            // Trigger delayed profile revert
+            profileManager.onTrackPausedOrStopped()
             return
         }
 
@@ -93,7 +98,7 @@ class TrackSyncManager private constructor(context: Context) {
     }
 
     /**
-     * Executes the local cache check and Telegram search pipeline.
+     * Executes the local cache check, Telegram search, and profile bio update pipeline.
      */
     private suspend fun processTrackSync(track: TrackInfo) {
         val artist = track.artist
@@ -114,8 +119,10 @@ class TrackSyncManager private constructor(context: Context) {
                         "Doc ID:      ${cachedDocument.id}\n" +
                         "====================================================="
             )
-            notifyStatus("Cache Hit: Found ${cachedDocument.title} (Doc ID: ${cachedDocument.id})")
-            // Ready for Step 4 (Profile update)
+            notifyStatus("Cache Hit: Found ${cachedDocument.title}")
+
+            // Update Telegram profile bio using cached document info
+            profileManager.onTrackStartedPlaying(track, cachedDocument)
             return
         }
 
@@ -144,10 +151,13 @@ class TrackSyncManager private constructor(context: Context) {
                                 "Total Cache: ${cacheManager.size()} items\n" +
                                 "======================================================="
                     )
-                    notifyStatus("Matched & Cached: ${matchedDoc.title} (Doc ID: ${matchedDoc.id})")
+                    notifyStatus("Matched & Cached: ${matchedDoc.title}")
+                    profileManager.onTrackStartedPlaying(track, matchedDoc)
                 } else {
                     Log.w(TAG, "[SEARCH COMPLETED] No matching Telegram audio found for: '$artist - $title'")
                     notifyStatus("No match found for: $artist - $title")
+                    // Even if audio file isn't on Telegram, update profile bio with track info
+                    profileManager.onTrackStartedPlaying(track, null)
                 }
             },
             onFailure = { error ->
@@ -157,6 +167,8 @@ class TrackSyncManager private constructor(context: Context) {
                 } else {
                     Log.e(TAG, "[SEARCH FAILED] Error querying Telegram: ${error.message}", error)
                     notifyStatus("Search error: ${error.message}")
+                    // Still update profile with current media player metadata
+                    profileManager.onTrackStartedPlaying(track, null)
                 }
             }
         )
