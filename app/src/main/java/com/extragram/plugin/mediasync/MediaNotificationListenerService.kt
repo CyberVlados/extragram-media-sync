@@ -263,6 +263,11 @@ class MediaNotificationListenerService : NotificationListenerService() {
         Log.i(TAG, "Duration: ${newTrack.durationSeconds}s")
         Log.i(TAG, "Status:   ${if (newTrack.isPlaying) "PLAYING" else "PAUSED/STOPPED"}")
         Log.i(TAG, "======================================================")
+
+        // Trigger Step 2: Local Caching & Telegram Music Search
+        com.extragram.plugin.mediasync.manager.TrackSyncManager
+            .getInstance(applicationContext)
+            .onTrackChanged(newTrack)
     }
 
     private fun cleanup() {
